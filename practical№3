@@ -1,0 +1,297 @@
+using System;
+using System.IO;
+using System.Threading.Tasks;
+
+class WorkUser
+{
+    public string nameFile;
+
+    public WorkUser(string nameFile)
+    {
+        this.nameFile = nameFile;
+    }
+
+    public async Task AddUsersAsync(string login, string password)
+    {
+        string text = login + ":" + password + "\n";
+        await File.AppendAllTextAsync(nameFile, text);
+    }
+
+    public async Task<bool> AutorizationAsync(string login, string password)
+    {
+        if (!File.Exists(nameFile))
+        {
+            await using (var stream = File.Create(nameFile)) { }
+        }
+        string content = await File.ReadAllTextAsync(nameFile);
+        string[] lines = content.Split('\n');
+
+        foreach (string line in lines)
+        {
+            string[] parts = line.Split(':');
+            if (parts.Length == 2 && parts[0] == login && parts[1] == password)
+            {
+                Console.WriteLine("Проверка прошла успешно!");
+                return true;
+            }
+        }
+        Console.WriteLine("Данные не найдены");
+        return false;
+    }
+
+    public async Task<bool> RegistrationAsync(string login, string password)
+    {
+        if (!File.Exists(nameFile))
+        {
+            await using (var stream = File.Create(nameFile)) { }
+        }
+        string content = await File.ReadAllTextAsync(nameFile);
+        string[] lines = content.Split('\n');
+        foreach (string line in lines)
+        {
+            string[] parts = line.Split(':');
+            if (parts.Length == 2 && parts[0] == login && parts[1] == password)
+            {
+                Console.WriteLine("Пользователь уже зарегистрирован!");
+                return false;
+            }
+        }
+        await AddUsersAsync(login, password);
+        Console.WriteLine("Удачный вход");
+        return true;
+    }
+}
+
+class WorkTasks
+{
+    public string nameFile;
+
+    public WorkTasks(string nameFile)
+    {
+        this.nameFile = nameFile;
+    }
+
+    public async Task AddTaskAsync(string headingTask, string descriptionTask, string priorityTask, string statusTask)
+    {
+        string text = headingTask + ":" + descriptionTask + ":" + priorityTask + ":" + statusTask + "\n";
+        await File.AppendAllTextAsync(nameFile, text);
+    }
+
+    public async Task DeleteTaskAsync(string headingTask, string descriptionTask, string priorityTask, string statusTask)
+    {
+        string[] lines = await File.ReadAllLinesAsync(nameFile);
+        bool found = false;
+
+        List<string> updatedLines = new List<string>();
+
+        foreach (var line in lines)
+        {
+            string[] parts = line.Split(':');
+
+            if (parts.Length != 4 || !(parts[0] == headingTask && parts[1] == descriptionTask && parts[2] == priorityTask && parts[3] == statusTask))
+            {
+                updatedLines.Add(line);
+            }
+            else
+            {
+                found = true;
+            }
+        }
+
+        if (found)
+        {
+            await File.WriteAllLinesAsync(nameFile, updatedLines);
+            Console.WriteLine("Задача успешно удалена.");
+        }
+        else
+        {
+            Console.WriteLine("Задача не найдена.");
+        }
+    }
+
+
+    public async Task EditTaskAsync(string headingTask, string descriptionTask, string priorityTask, string statusTask)
+    {
+        string[] lines = await File.ReadAllLinesAsync(nameFile);
+        bool found = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string[] parts = lines[i].Split(':');
+
+            if (parts.Length == 4 && parts[0] == headingTask && parts[1] == descriptionTask && parts[2] == priorityTask && parts[3] == statusTask)
+            {
+                Console.WriteLine("Введите значение, которое хотите изменить (1. Название, 2. Описание, 3. Приоритет, 4. Статус): ");
+                string name = Console.ReadLine().Trim();
+
+                if (name == "1")
+                {
+                    Console.WriteLine("Введите новое название: ");
+                    parts[0] = Console.ReadLine();
+                }
+                else if (name == "2")
+                {
+                    Console.WriteLine("Введите новое описание: ");
+                    parts[1] = Console.ReadLine();
+                }
+                else if (name == "3")
+                {
+                    Console.WriteLine("Введите новый приоритет: ");
+                    parts[2] = await GetValidPriorityAsync();
+                }
+                else if (name == "4")
+                {
+                    Console.WriteLine("Введите новый статус: ");
+                    parts[3] = await GetValidStatusAsync();
+                }
+                else
+                {
+                    Console.WriteLine("Ошибка! Некорректный ввод.");
+                    return;
+                }
+                lines[i] = string.Join(":", parts);
+                found = true;
+                break;
+            }
+        }
+        if (found)
+        {
+            await File.WriteAllLinesAsync(nameFile, lines);
+            Console.WriteLine("Изменения сохранены.");
+        }
+        else
+        {
+            Console.WriteLine("Задание не найдено.");
+        }
+    }
+
+    public async Task<string> GetValidPriorityAsync()
+    {
+        while (true)
+        {
+            Console.WriteLine("Введите приоритет (низкий, средний, высокий): ");
+            string priority = Console.ReadLine().Trim().ToLower();
+            if (priority == "низкий" || priority == "средний" || priority == "высокий")
+            {
+                return priority;
+            }
+            Console.WriteLine("Некорректный ввод. Пожалуйста, введите одно из допустимых значений: низкий, средний, высокий.");
+        }
+    }
+
+    public async Task<string> GetValidStatusAsync()
+    {
+        while (true)
+        {
+            Console.WriteLine("Введите статус (недоступна, в процессе, завершена): ");
+            string status = Console.ReadLine().Trim().ToLower();
+            if (status == "недоступна" || status == "в процессе" || status == "завершена")
+            {
+                return status;
+            }
+            Console.WriteLine("Некорректный ввод. Пожалуйста, введите одно из допустимых значений: недоступна, в процессе, завершена.");
+        }
+    }
+}
+
+class Program
+{
+    public static async Task Main(string[] args)
+    {
+        WorkTasks workTasks = new WorkTasks("tasks.txt");
+        WorkUser workUser = new WorkUser("users.txt");
+
+        while (true)
+        {
+            Console.WriteLine("Добро пожаловать!");
+            Console.WriteLine("Введите действие (1. Авторизация, 2. Регистрация, 3. Выйти): ");
+            string auth = Console.ReadLine();
+
+            if (auth == "1")
+            {
+                Console.WriteLine("Введите логин: ");
+                string login = Console.ReadLine();
+                Console.WriteLine("Введите пароль: ");
+                string password = Console.ReadLine();
+
+                if (await workUser.AutorizationAsync(login, password))
+                {
+                    await TaskManagementAsync(workTasks);
+                }
+            }
+            else if (auth == "2")
+            {
+                Console.WriteLine("Введите логин: ");
+                string login = Console.ReadLine();
+                Console.WriteLine("Введите пароль: ");
+                string password = Console.ReadLine();
+
+                if (await workUser.RegistrationAsync(login, password))
+                {
+                    await TaskManagementAsync(workTasks);
+                }
+            }
+            else if (auth == "3")
+            {
+                Console.WriteLine("Выход из программы.");
+                return;
+            }
+            else
+            {
+                Console.WriteLine("Введите корректное значение (1, 2 или 3)");
+            }
+        }
+    }
+
+    private static async Task TaskManagementAsync(WorkTasks workTasks)
+    {
+        while (true)
+        {
+            Console.WriteLine("Введите номер действия (1. Добавить задачу, 2. Изменить задачу, 3. Удалить задачу, 4. Выйти в меню): ");
+            string choice = Console.ReadLine();
+
+            if (choice == "1")
+            {
+                Console.WriteLine("Введите название задачи: ");
+                string heading = Console.ReadLine();
+                Console.WriteLine("Введите описание: ");
+                string description = Console.ReadLine();
+                string priority = await workTasks.GetValidPriorityAsync();
+                string status = await workTasks.GetValidStatusAsync();
+
+                await workTasks.AddTaskAsync(heading, description, priority, status);
+            }
+            else if (choice == "2")
+            {
+                Console.WriteLine("Введите название задачи: ");
+                string heading = Console.ReadLine();
+                Console.WriteLine("Введите описание: ");
+                string description = Console.ReadLine();
+                string priority = await workTasks.GetValidPriorityAsync();
+                string status = await workTasks.GetValidStatusAsync();
+
+                await workTasks.EditTaskAsync(heading, description, priority, status);
+            }
+            else if (choice == "3")
+            {
+                Console.WriteLine("Введите название задачи: ");
+                string heading = Console.ReadLine();
+                Console.WriteLine("Введите описание: ");
+                string description = Console.ReadLine();
+                string priority = await workTasks.GetValidPriorityAsync();
+                string status = await workTasks.GetValidStatusAsync();
+
+                await workTasks.DeleteTaskAsync(heading, description, priority, status);
+            }
+            else if (choice == "4")
+            {
+                Console.WriteLine("Возврат в главное меню.");
+                return;
+            }
+            else
+            {
+                Console.WriteLine("Введите корректное значение (1, 2, 3 или 4)");
+            }
+        }
+    }
+}
